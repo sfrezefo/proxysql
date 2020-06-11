@@ -694,7 +694,23 @@ void MySQL_Connection::connect_start() {
 		}
 	}
 	if (parent->port) {
-		async_exit_status=mysql_real_connect_start(&ret_mysql, mysql, parent->address, userinfo->username, auth_password, userinfo->schemaname, parent->port, NULL, client_flags);
+    	// sfrezefo hack for azure username
+        if(mysql_thread___azure_gen1_username) {
+      	  char  newusername[128];
+    	  strcpy(newusername, userinfo->username);
+    	  strcat(newusername,"@");
+    	  char *firstdot = parent->address;
+		  char *endhostname = parent->address + strlen(parent->address);
+    	  int i = strlen(newusername);
+      	  while  ((*firstdot != '.') && (firstdot != endhostname)) {
+    	    newusername[i++] = *firstdot;
+    	    firstdot++;
+    	  }
+          newusername[i]='\0';
+		  async_exit_status=mysql_real_connect_start(&ret_mysql, mysql, parent->address, newusername, auth_password, userinfo->schemaname, parent->port, NULL, client_flags);
+    	} else {
+		  async_exit_status=mysql_real_connect_start(&ret_mysql, mysql, parent->address, userinfo->username, auth_password, userinfo->schemaname, parent->port, NULL, client_flags);
+		}
 	} else {
 		async_exit_status=mysql_real_connect_start(&ret_mysql, mysql, "localhost", userinfo->username, auth_password, userinfo->schemaname, parent->port, parent->address, client_flags);
 	}
