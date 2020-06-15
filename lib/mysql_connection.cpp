@@ -695,7 +695,7 @@ void MySQL_Connection::connect_start() {
 	}
 	if (parent->port) {
     	// sfrezefo hack for azure username
-        if(mysql_thread___azure_gen1_username) {
+        if((mysql_thread___azure_gen1_username) && (strstr(parent->address, "mysql.database.azure.com") || strstr(parent->address, "mariadb.database.azure.com"))) {
       	  char  newusername[128];
     	  strcpy(newusername, userinfo->username);
     	  strcat(newusername,"@");

@@ -141,7 +141,7 @@ void * kill_query_thread(void *arg) {
 				break;
 		}
 		// sfrezefo hack for  azure username
-        if(mysql_thread___azure_gen1_username) {
+		if((mysql_thread___azure_gen1_username) && (strstr(ka->hostname, "mysql.database.azure.com") || strstr(ka->hostname, "mariadb.database.azure.com"))) {
 	      char  newusername[128];
 	      strcpy(newusername, ka->username);
 	      strcat(newusername,"@");

@@ -923,7 +923,7 @@ bool MySQL_Monitor_State_Data::create_new_connection() {
 		MYSQL *myrc=NULL;
 		if (port) {
       		// sfrezefo hack for azure
-            if(mysql_thread___azure_gen1_username) {
+			if((mysql_thread___azure_gen1_username) && (strstr(hostname, "mysql.database.azure.com") || strstr(hostname, "mariadb.database.azure.com"))) {
               char  newusername[128];
       	      strcpy(newusername, mysql_thread___monitor_username);
       	      strcat(newusername,"@");
