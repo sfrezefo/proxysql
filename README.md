@@ -1,9 +1,20 @@
 
-To address Azure Database for MySQL connecyion specificity We have defined a specific behaviour for proxysql.With Azure Database for MySQL the username syntax include the database name. 
+# ProxySQL to connect to Azure Database for MySQL 
+To address Azure Database for MySQL connection specificity We have implemented a specific behaviour for proxysql. What we call Azure Database for MySQL connection specificity is the fact that with Azure Database for MySQL the username syntax include the database name. 
+For exemple if you created a database called  <strong>mysqlpaasmaster<strong> and a user <strong>sbtest<strong> then the username tu use for connection will be 
+<strong>sbtest@mysqlpaasmaster<strong>.
+A connection to this database with tis user will look that way :
 <pre lang="sql" cssfile="another_style" >
-mysql -h mysqlpaasmaster.mysql.database.azure.com -u sbtest@mysqlpaasmaster -p \
+mysql -h mysqlpaasmaster.mysql.database.azure.com \
+  -u sbtest@mysqlpaasmaster -p \
   --ssl-mode=REQUIRED
+</pre>
 
+with this ProxySQL feature t will be possible to use the standard username. For example we wille be able to use the sbtest username to connect. This is very important when we use proxySQL with multiple backends like in a Read/write splitting configuration.
+
+Toillustrate this feature we will go throu a very typical Read/Write splitting configuration.
+
+## example
 We connect to the master and create 2 users : 'sbtest' for injecting traffic and 'monitoruser' required by proxysql to monitor the backend servers :
  
 
@@ -31,9 +42,6 @@ set mysql-azure_gen1_username='true';
 load mysql variables to runtime; ONLINE
 </pre>
 This is manadatory to use proxySQL with Azure Database for MySQL 
-
-
-
 
 CREATE SCHEMA sbtest;
 CREATE USER sbtest@'%' IDENTIFIED BY 'Passw0rd';
