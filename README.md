@@ -1,284 +1,393 @@
-<a><img src="https://i0.wp.com/proxysql.com/wp-content/uploads/2020/04/ProxySQL-Colour-Logo.png?fit=800%2C278&ssl=1" alt="ProxySQL"></a>
 
-Introduction	
-============	
+To address Azure Database for MySQL connecyion specificity We have defined a specific behaviour for proxysql.With Azure Database for MySQL the username syntax include the database name. 
+<pre lang="sql" cssfile="another_style" >
+mysql -h mysqlpaasmaster.mysql.database.azure.com -u sbtest@mysqlpaasmaster -p \
+  --ssl-mode=REQUIRED
 
-ProxySQL is a high performance, high availability, protocol aware proxy for MySQL and forks (like Percona Server and MariaDB).	
-All the while getting the unlimited freedom that comes with a GPL license.	
-
-Its development is driven by the lack of open source proxies that provide high performance.  	
-
-Useful links	
-===============	
-
-- [Official website](http://www.proxysql.com/)	
-- [Documentation](https://github.com/sysown/proxysql/wiki)
-- [DockerHub Repository](https://hub.docker.com/r/proxysql/proxysql)
-- [Benchmarks and blog posts](http://www.proxysql.blogspot.com/)	
-- [Forum](https://groups.google.com/forum/#!forum/proxysql/)	
-- [Linkedin group](https://www.linkedin.com/groups/13581070/)	
-
-Getting started
-===============
-
-### Installation
-Released packages can be found here: https://github.com/sysown/proxysql/releases
-
-Just download a package and use your systems package manager to install it:
-```bash
-wget https://github.com/sysown/proxysql/releases/download/v2.0.1/proxysql_2.0.1-ubuntu16_amd64.deb
-dpkg -i proxysql_2.0.1-ubuntu16_amd64.deb
-```
-
-Alternatively you can also use the available repositories:
-
-#### Ubuntu / Debian:
-
-Adding repository:
-```bash
-apt-get install -y lsb-release apt-transport-https
-wget -O - 'https://repo.proxysql.com/ProxySQL/repo_pub_key' | apt-key add -
-echo deb https://repo.proxysql.com/ProxySQL/proxysql-2.0.x/$(lsb_release -sc)/ ./ \
-| tee /etc/apt/sources.list.d/proxysql.list
-```
-Note: For 1.4.x series releases use `https://repo.proxysql.com/ProxySQL/proxysql-1.4.x/$(lsb_release -sc)/ ./` instead.
-
-Installing:
-```bash
-apt-get update
-apt-get install proxysql OR apt-get install proxysql=version
-```
-
-#### Red Hat / CentOS:
-
-Adding repository:
-```bash
-cat <<EOF | tee /etc/yum.repos.d/proxysql.repo
-[proxysql_repo]
-name= ProxySQL YUM repository
-baseurl=https://repo.proxysql.com/ProxySQL/proxysql-2.0.x/centos/\$releasever
-gpgcheck=1
-gpgkey=https://repo.proxysql.com/ProxySQL/repo_pub_key
-EOF
-```
-Note: For 1.4.x series releases use `https://repo.proxysql.com/ProxySQL/proxysql-1.4.x/centos/$releasever` instead
-
-Installing:
-```bash
-yum install proxysql OR yum install proxysql-version
-```
-
-#### Amazon Linux Servers (AMI):
-
-Adding repository:
-```bash
-vi /etc/yum.repos.d/proxysql.repo
-[proxysql_repo]
-name= ProxySQL YUM repository
-baseurl=https://repo.proxysql.com/ProxySQL/proxysql-2.0.x/centos/latest
-gpgcheck=1
-gpgkey=https://repo.proxysql.com/ProxySQL/repo_pub_key
-```
-Note: For 1.4.x series releases use `https://repo.proxysql.com/ProxySQL/proxysql-1.4.x/centos/latest` instead
-
-Installing:
-```bash
-yum install proxysql OR yum install proxysql-version
-```
-
-### Service management
-Once the software is installed, you can use the `service` command to control the process:  
-
-#### Starting ProxySQL:
-```bash
-service proxysql start
-```
-#### Stopping ProxySQL:
-```bash
-service proxysql stop
-```
-
-Or alternatively via the Admin interface:
-```
-$ mysql -u admin -padmin -h 127.0.0.1 -P6032 --prompt='Admin> '
-Warning: Using a password on the command line interface can be insecure.
-Welcome to the MySQL monitor.  Commands end with ; or \g.
-Your MySQL connection id is 4
-Server version: 5.5.30 (ProxySQL Admin Module)
-
-Copyright (c) 2000, 2016, Oracle and/or its affiliates. All rights reserved.
-
-Oracle is a registered trademark of Oracle Corporation and/or its
-affiliates. Other names may be trademarks of their respective
-owners.
-
-Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
-
-Admin> proxysql stop
-```
-
-#### Restarting ProxySQL:
-```bash
-service proxysql restart
-```
-
-Or alternatively via the Admin interface:
-```
-$ mysql -u admin -padmin -h 127.0.0.1 -P6032 --prompt='Admin> '
-Warning: Using a password on the command line interface can be insecure.
-Welcome to the MySQL monitor.  Commands end with ; or \g.
-Your MySQL connection id is 4
-Server version: 5.5.30 (ProxySQL Admin Module)
-
-Copyright (c) 2000, 2016, Oracle and/or its affiliates. All rights reserved.
-
-Oracle is a registered trademark of Oracle Corporation and/or its
-affiliates. Other names may be trademarks of their respective
-owners.
-
-Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
-
-Admin> proxysql restart
-```
-
-#### Reinitializing ProxySQL from the config file (after first startup the DB file is used instead of the config file):
-```bash
-# If you are using the init script run:
-/etc/init.d/proxysql initial
-# or
-service proxysql initial
+We connect to the master and create 2 users : 'sbtest' for injecting traffic and 'monitoruser' required by proxysql to monitor the backend servers :
  
-# If you are using the systemd unit file run:
-systemctl start proxysql-initial
-# or
-service proxysql-initial start
-```
 
-### Upgrades
-Just install the new package and restart ProxySQL:
-```bash
-wget https://github.com/sysown/proxysql/releases/download/v2.0.2/proxysql_2.0.2-ubuntu16_amd64.deb
-dpkg -i proxysql_2.0.2-ubuntu16_amd64.deb
-service proxysql restart
-```
+This means we have a different user for each instances. This  does not fit the ProxySQL connection to backends pattern. We will a common user for all backends. ProxySQL will transparently at connection time inject the database name in the username. 
 
-### How to check the ProxySQL version
-```bash
-$ proxysql --version
-```
-```bash
-ProxySQL version v1.4.9-1.1, codename Truls
-```
-A debug version has `_DEBUG` in its version string.
-It is slower than non-debug version, but easier to debug in case of failures.
-```bash
-$ proxysql --version
-```
-```bash
-Main init phase0 completed in 0.000146 secs.
-ProxySQL version v1.4.9-1.1_DEBUG, codename Truls
-```
+For example for a username defined as <strong>'sbtest'</strong> it will generate different usernames to be used to connect to different backends
+<pre lang="bash" cssfile="another_style" >
+sbtest@mysqlpaasmaster if connecting to mysqlpaasmaster.mysql.database.azure.com
+sbtest@mysqlpaasreplica1 if connecting to mysqlpaasreplica1.mysql.database.azure.com
+sbtest@mysqlpaasreplica2 if connecting to mysqlpaasreplica2.mysql.database.azure.com
+</pre>
 
-### Configuring ProxySQL via the `admin interface`
+it will do the same when connecting to the monitoring user <strong>'monitoruser'</strong>
+<pre lang="bash" cssfile="another_style" >
+monitoruser@mysqlpaasmaster if connecting to mysqlpaasmaster.mysql.database.azure.com
+monitoruser@mysqlpaasreplica1 if connecting to mysqlpaasreplica1.mysql.database.azure.com
+monitoruser@mysqlpaasreplica2 if connecting to mysqlpaasreplica2.mysql.database.azure.com
+</pre>
 
-First of all, bear in mind that the best way to configure ProxySQL is through its admin interface. This lends itself to online configuration (without having to restart the proxy) via SQL queries to its admin database. It's an effective way to configure it both manually and in an automated fashion.
+you can set a global variable that will automatically the 
 
-As a secondary way to configure it, we have the configuration file. 
+To activate the Azure specific behavior when using Azure Database for MySQL / MariaDB:
+<pre lang="bash" cssfile="another_style" >
+set mysql-azure_gen1_username='true';
+load mysql variables to runtime; ONLINE
+</pre>
+This is manadatory to use proxySQL with Azure Database for MySQL 
 
-#### Configuring ProxySQL through the admin interface
 
-To log into the admin interface (with the default credentials) use a mysql client and connect using the following `admin` credentials locally on port (6032):
-```bash
-$ mysql -u admin -padmin -h 127.0.0.1 -P6032 --prompt='Admin> '
-Warning: Using a password on the command line interface can be insecure.
-Welcome to the MySQL monitor.  Commands end with ; or \g.
-Your MySQL connection id is 4
-Server version: 5.5.30 (ProxySQL Admin Module)
 
-Copyright (c) 2000, 2016, Oracle and/or its affiliates. All rights reserved.
 
-Oracle is a registered trademark of Oracle Corporation and/or its
-affiliates. Other names may be trademarks of their respective
-owners.
+CREATE SCHEMA sbtest;
+CREATE USER sbtest@'%' IDENTIFIED BY 'Passw0rd';
+GRANT ALL PRIVILEGES ON sbtest.* to sbtest@'%';
 
-Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
+CREATE USER 'monitoruser'@'%' IDENTIFIED BY 'Passw0rd'; 
+GRANT SELECT ON *.* TO 'monitoruser'@'%' WITH GRANT OPTION; 
+FLUSH PRIVILEGES; 
+</pre>
+Now we configure proxysql through the proxysql admin. At initial startup proxysql reads its configuration from /etc/proxysql.cnf. This is where the admin user credentials are defined :
+<pre lang="bash" cssfile="another_style" >
+        admin_credentials="proxysqladmin:Passw0rd"
+        mysql_ifaces="0.0.0.0:6032"
+</pre>
+All the rest of the configuration can be done in a scripted way that will be persisted to disk in a SQLite database.
+<pre lang="bash" cssfile="another_style" >
+mysql -h 127.0.0.1  -u proxysqladmin -pPassw0rd -P6032 --ssl
 
-Admin>
-```
+set mysql-monitor_username='monitoruser'; 
+set mysql-monitor_password='Passw0rd'; 
+</pre>
 
-note: If your MySQL client version is version 8.04 or higher add `--default-auth=mysql_native_password` to the above command to connect to the admin interface.
+Before defining the servers we activate the azure feature so that they can be reached by proxysql monitoring through a common monitoring user. 
+<pre lang="bash" cssfile="another_style" >
+set mysql-azure_gen1_username='true';
 
-Once connected to the admin interface, you will have a list of databases and tables at your disposal that can be queried using the SQL language:
-```mysql
-Admin> SHOW DATABASES;
-+-----+---------+-------------------------------+
-| seq | name    | file                          |
-+-----+---------+-------------------------------+
-| 0   | main    |                               |
-| 2   | disk    | /var/lib/proxysql/proxysql.db |
-| 3   | stats   |                               |
-| 4   | monitor |                               |
-+-----+---------+-------------------------------+
+insert into mysql_servers(hostgroup_id,hostname,port,weight,use_ssl, comment) 
+  values(10,'mysqlpaasmaster.mysql.database.azure.com',3306,1,1,'Write Group');
+insert into mysql_servers(hostgroup_id,hostname,port,weight,use_ssl, comment) 
+  values(20,'mysqlpaasreplica1.mysql.database.azure.com',3306,1,1,'Read Group');
+insert into mysql_servers(hostgroup_id,hostname,port,weight,use_ssl, comment) 
+  values(20,'mysqlpaasreplica2.mysql.database.azure.com',3306,1,1,'Read Group');
+</pre>
+We then define the 'sbtest' proxysql user that  will transparently be transformed at connection time. ProxySQL will inject the database name in the username as is required by Azure Database for MySQL to connect through the gateway. 'sbtest' username  will be transformed to sbtest@mysqlpaasmaster, sbtest@mysqlpaasreplica1, sbtest@mysqlpaasreplica2 depending on what backend proxysql connect to. The 'sbtest' user has for default host group 10 which is the master server. That means that all queries for which no routing rules applies will end there.
+
+<pre lang="bash" cssfile="another_style" >
+insert into mysql_users(username,password,default_hostgroup,transaction_persistent) 
+  values('sbtest','Passw0rd',10,1);
+</pre>
+No we need to define  the query routing rules that will determine to which host groups and consequently backends the queries will be routed. For Read/Write splitting that is quite simple : SELECT FOR UPDATE to 'Write group, SELECT to 'Read group' and all the rest to the default group of the user. So this means everything to 'Write group' except pure SELECT. 
+<pre lang="bash" cssfile="another_style" >
+insert into mysql_query_rules(rule_id,active,match_digest,destination_hostgroup,apply) 
+  values(1,1,'^SELECT.*FOR UPDATE$',10,1); 
+insert into mysql_query_rules(rule_id,active,match_digest,destination_hostgroup,apply) 
+  values(2,1,'^SELECT',20,1); 
+</pre>
+Our setup for proxysql is in memory and need to be pushed to runtime an disk. 
+<pre lang="bash" cssfile="another_style" >
+load mysql users to runtime; 
+load mysql servers to runtime; 
+load mysql query rules to runtime; 
+load mysql variables to runtime; 
+load admin variables to runtime; 
+
+save mysql users to disk; 
+save mysql servers to disk; 
+save mysql query rules to disk; 
+save mysql variables to disk; 
+save admin variables to disk; 
+</pre>
+
+
+
+
+
+
+
+
+
+
+================================
+
+
+
+
+In the <a href="https://serge.frezefond.com/2020/06/using-proxysql-with-azure-database-for-mysql-mariadb/" rel="noopener" target="_blank">previous post</a> I mentioned a hack to make <a href="https://proxysql.com/documentation/" rel="noopener" target="_blank">ProxySQL</a> compatible with <a href="https://docs.microsoft.com/en-us/azure/mysql/" rel="noopener" target="_blank">Azure Database for MySQL</a>. If you want to try it you can download it from <a href="https://github.com/sfrezefo/proxysql/tree/azurehack" rel="noopener" target="_blank">github</a> and build a package for your target linux distribution :
+<pre lang="bash" cssfile="another_style" >
+$ git clone https://github.com/sfrezefo/proxysql.git
+$ cd  proxysql
+$ git checkout azurehack
+</pre>
+
+To make a usable package you just need to have docker available. The build process through the Makefile trigger a docker container which already has all the required dependencies for building installed. For example to make a package for ubuntu 18, to install it and to run it :
+<pre lang="bash" cssfile="another_style" >
+$ make ubuntu18
+:$
+
+$ cd binaries
+$ dpkg -i proxysql_2.0.13-ubuntu18_amd64.deb
+$ sudo service proxysql start
+</pre>
+
+We now have a running proxysql. Let us use it. We first create a master and 2 replicas Azure Database for MySQL. We connect to the master and create 2 users : 'sbtest' for injecting traffic and 'monitoruser' required by proxysql to monitor the backend servers :
+ 
+<pre lang="sql" cssfile="another_style" >
+mysql -h mysqlpaasmaster.mysql.database.azure.com -u sbtest@mysqlpaasmaster -p \
+  --ssl-mode=REQUIRED
+
+CREATE SCHEMA sbtest;
+CREATE USER sbtest@'%' IDENTIFIED BY 'Passw0rd';
+GRANT ALL PRIVILEGES ON sbtest.* to sbtest@'%';
+
+CREATE USER 'monitoruser'@'%' IDENTIFIED BY 'Passw0rd'; 
+GRANT SELECT ON *.* TO 'monitoruser'@'%' WITH GRANT OPTION; 
+FLUSH PRIVILEGES; 
+</pre>
+Now we configure proxysql through the proxysql admin. At initial startup proxysql reads its configuration from /etc/proxysql.cnf. This is where the admin user credentials are defined :
+<pre lang="bash" cssfile="another_style" >
+        admin_credentials="proxysqladmin:Passw0rd"
+        mysql_ifaces="0.0.0.0:6032"
+</pre>
+All the rest of the configuration can be done in a scripted way that will be persisted to disk in a SQLite database.
+<pre lang="bash" cssfile="another_style" >
+mysql -h 127.0.0.1  -u proxysqladmin -pPassw0rd -P6032 --ssl
+
+set mysql-monitor_username='monitoruser'; 
+set mysql-monitor_password='Passw0rd'; 
+</pre>
+
+Before defining the servers we activate the azure feature so that they can be reached by proxysql monitoring through a common monitoring user. 
+<pre lang="bash" cssfile="another_style" >
+set mysql-azure_gen1_username='true';
+
+insert into mysql_servers(hostgroup_id,hostname,port,weight,use_ssl, comment) 
+  values(10,'mysqlpaasmaster.mysql.database.azure.com',3306,1,1,'Write Group');
+insert into mysql_servers(hostgroup_id,hostname,port,weight,use_ssl, comment) 
+  values(20,'mysqlpaasreplica1.mysql.database.azure.com',3306,1,1,'Read Group');
+insert into mysql_servers(hostgroup_id,hostname,port,weight,use_ssl, comment) 
+  values(20,'mysqlpaasreplica2.mysql.database.azure.com',3306,1,1,'Read Group');
+</pre>
+We then define the 'sbtest' proxysql user that  will transparently be transformed at connection time. ProxySQL will inject the database name in the username as is required by Azure Database for MySQL to connect through the gateway. 'sbtest' username  will be transformed to sbtest@mysqlpaasmaster, sbtest@mysqlpaasreplica1, sbtest@mysqlpaasreplica2 depending on what backend proxysql connect to. The 'sbtest' user has for default host group 10 which is the master server. That means that all queries for which no routing rules applies will end there.
+
+<pre lang="bash" cssfile="another_style" >
+insert into mysql_users(username,password,default_hostgroup,transaction_persistent) 
+  values('sbtest','Passw0rd',10,1);
+</pre>
+No we need to define  the query routing rules that will determine to which host groups and consequently backends the queries will be routed. For Read/Write splitting that is quite simple : SELECT FOR UPDATE to 'Write group, SELECT to 'Read group' and all the rest to the default group of the user. So this means everything to 'Write group' except pure SELECT. 
+<pre lang="bash" cssfile="another_style" >
+insert into mysql_query_rules(rule_id,active,match_digest,destination_hostgroup,apply) 
+  values(1,1,'^SELECT.*FOR UPDATE$',10,1); 
+insert into mysql_query_rules(rule_id,active,match_digest,destination_hostgroup,apply) 
+  values(2,1,'^SELECT',20,1); 
+</pre>
+Our setup for proxysql is in memory and need to be pushed to runtime an disk. 
+<pre lang="bash" cssfile="another_style" >
+load mysql users to runtime; 
+load mysql servers to runtime; 
+load mysql query rules to runtime; 
+load mysql variables to runtime; 
+load admin variables to runtime; 
+
+save mysql users to disk; 
+save mysql servers to disk; 
+save mysql query rules to disk; 
+save mysql variables to disk; 
+save admin variables to disk; 
+</pre>
+
+To test our configuration we need to inject traffic. We will use sysbench for that :
+<pre lang="bash" cssfile="another_style" >
+  sysbench --threads=4 '/usr/share/sysbench/oltp_read_write.lua' \
+            --db-driver=mysql --time=20 \
+            --mysql-host='127.0.0.1' --mysql-port=3306 \
+            --mysql-user=sbtest --mysql-password=Passw0rd \
+            --tables=5 --tables=10000 \
+            prepare
+
+  sysbench --threads=4 '/usr/share/sysbench/oltp_read_write.lua' \
+            --db-driver=mysql --time=20 \
+            --mysql-host='127.0.0.1' --mysql-port=3306 \
+            --mysql-user=sbtest --mysql-password=Passw0rd \
+            --tables=5 --tables=10000 \
+            run
+</pre>
+
+We see that master and replicas have received their share of sysbench queries.
+<pre lang="sql" cssfile="another_style" >
+MySQL > select hostgroup, srv_host,Queries from stats_mysql_connection_pool;
++-----------+--------------------------------------------+---------+
+| hostgroup | srv_host                                   | Queries |
++-----------+--------------------------------------------+---------+
+| 10        | mysqlpaasmaster.mysql.database.azure.com   | 472     |
+| 20        | mysqlpaasreplica1.mysql.database.azure.com | 415     |
+| 20        | mysqlpaasmaster.mysql.database.azure.com   | 402     |
+| 20        | mysqlpaasreplica2.mysql.database.azure.com | 422     |
++-----------+--------------------------------------------+---------+
+4 rows in set (0.00 sec).
+</pre>
+We also get the digest of all the queries run and on which hostgroup they ran. We can see here that all INSERT, UPDATE,DELE were sent to the Write hostgroup and the SELECT to the Read hostgroup.
+<pre lang="sql" cssfile="another_style" >
+select hostgroup, username, digest_text from  stats_mysql_query_digest;
++-----------+----------+-------------------------------------------------------------+
+| hostgroup | username | digest_text                                                 |
++-----------+----------+-------------------------------------------------------------+
+| 10        | sbtest   | INSERT INTO sbtest5 (id, k, c, pad) VALUES (?, ?, ?, ?)     |
+| 10        | sbtest   | DELETE FROM sbtest2 WHERE id=?                              |
+| 10        | sbtest   | UPDATE sbtest2 SET c=? WHERE id=?                           |
+| 20        | sbtest   | SELECT c FROM sbtest5 WHERE id BETWEEN ? AND ? ORDER BY c   |
+| 20        | sbtest   | SELECT SUM(k) FROM sbtest4 WHERE id BETWEEN ? AND ?         |
+...
+</pre>
+
+I hope this helped.
+
+
+
+
+
+Azure Database for MySQL is a PaaS offer. It has a specific architecture that relies on a gateway. This has a huge advantage in the way it handle  High availability. If a server fails it will automatically restart. The storage for the database is highly resilient and will be reconnected to the new server. You get HA out of the box without having to care about replica and failover handling.
+
+if we look at a connection to a Azure Database for MySQL it is different from a usual MySQL connection.
+
+<pre lang="bashl" cssfile="another_style" >
+mysql -h mysqlpaasmaster.mysql.database.azure.com \
+  -u sbtest@mysqlpaasmaster -p \
+  --ssl-mode=REQUIRED
+ </pre>
+
+
+  we notice :
+  hostname : mysqlpaasmaster.mysql.database.azure.com 
+  username : sbtest@mysqlpaasmaster
+  
+  Why do we have the instance name in the username ?
+  If we look at what the host name is, using the unix host command (dig would also do the trick).
+
+<pre lang="bash" cssfile="another_style" >
+$ host mysqlpaasmaster.mysql.database.azure.com
+mysqlpaasmaster.mysql.database.azure.com is an alias for cr5.northeurope1-a.control.database.windows.net.
+cr5.northeurope1-a.control.database.windows.net has address 52.138.224.6
+ </pre>
+
+The host name is just an alias to a gateway server (it is not an A record in the DNS). So the host you connect to is specific to the database's region but carry no information about the mysql instance you connect to. This explains why when you connect you need to embed the database name into the user name. This is the only way for the gateway to know which instance you want to connect to.
+
+Does this fit with <a href="https://proxysql.com/documentation/" rel="noopener" target="_blank">proxySQL</a> ? unfortunately <strong>No</strong>.
+
+ProxySQL is a fantastic technology widely used on MySQL / MariaDB architectures on premise or in the cloud. It has a nice design with the concept of host groups and query rules used to route queries to the desired backend server (based on port or regex).
+
+To achieve this routing proxySQL uses a set of users that will potentially connect to multiple  backends depending on the status of these backends and the routing query rules. This is also the same for the monitoring user that is common to all the backends.
+
+With Azure Database for MySQL we have a different user for each instances. This  does not fit the ProxySQL connection to backends pattern.
+
+How to fix this ? I decided to try a little hack ;-) !
+
+The idea is to keep the principle of having a common user for all backends. ProxySQL will transparently at connection time inject the database name in the username. 
+
+For example for a username defined as <strong>'sbtest'</strong> it will generate different usernames to be used to connect
+<pre lang="bash" cssfile="another_style" >
+sbtest@mysqlpaasmaster if connecting to mysqlpaasmaster.mysql.database.azure.com
+sbtest@mysqlpaasreplica1 if connecting to mysqlpaasreplica1.mysql.database.azure.com
+sbtest@mysqlpaasreplica2 if connecting to mysqlpaasreplica2.mysql.database.azure.com
+</pre>
+
+it will do the same when connecting to the monitoring user <strong>'monitoruser'</strong>
+<pre lang="bash" cssfile="another_style" >
+monitoruser@mysqlpaasmaster if connecting to mysqlpaasmaster.mysql.database.azure.com
+monitoruser@mysqlpaasreplica1 if connecting to mysqlpaasreplica1.mysql.database.azure.com
+monitoruser@mysqlpaasreplica2 if connecting to mysqlpaasreplica2.mysql.database.azure.com
+</pre>
+
+So now to test this hack with Azure Database for MySQL I have  setup a Master with 2 replicas (that can be geo replica in another region if you wish). I have  created a single user 'sbtest' in proxySQL. On this setup I run a simple sysbench to inject traffic. I use the oltp_read_write.lua script to generate insert, update, delete and select to validate that the read write splitting is working correctly. And it works like a charm :-)
+
+Here are the host groups, 10 for writes and 20 for reads. Hostgroup 20 contains the 2 replicas plus the master that can also be used for reads(if you want it to focus on write you can put a low weight). Hostgroup 10 contains only the master :
+<pre lang="sql" cssfile="another_style" >
+MySQL > select hostgroup_id,hostname,status,comment,use_ssl from mysql_servers;
++--------------+--------------------------------------------+--------+-------------+---+
+| hostgroup_id | hostname                                   | status | comment     |use_ssl
++--------------+-----------------,---------------------------+--------+-------------+----
+| 10           | mysqlpaasmaster.mysql.database.azure.com   | ONLINE | Write Group | 1 |
+| 20           | mysqlpaasreplica1.mysql.database.azure.com | ONLINE | Read Group  | 1 |
+| 20           | mysqlpaasreplica2.mysql.database.azure.com | ONLINE | Read Group  | 1 |
+| 20           | mysqlpaasmaster.mysql.database.azure.com   | ONLINE | Write Group | 1 |
++--------------+--------------------------------------------+--------+-------------+---+
 4 rows in set (0.00 sec)
-```
-This will allow you to control the list of the backend servers, how traffic is routed to them, and other important settings (such as caching, access control, etc). Once you've made modifications to the in-memory data structure, you must load the new configuration to the runtime, or persist the new settings to disk (so that they are still there after a restart of the proxy). A detailed tutorial on how to configure ProxySQL through the Admin interface is available [here](https://github.com/sysown/proxysql/wiki/ProxySQL-Configuration).
+</pre>
+Here is the single user used for all the backends.
+<pre lang="sql" cssfile="another_style" >
+MySQL > select username,password,active,use_ssl,default_hostgroup from mysql_users;
++----------+----------+--------+---------+-------------------+
+| username | password | active | use_ssl | default_hostgroup |
++----------+----------+--------+---------+-------------------+
+| sbtest   | password | 1      | 0       | 10                | 
++----------+----------+--------+---------+-------------------+
+1 row in set (0.00 sec)
+</pre>
+And here are the query rules to route the queries to the right backend.
+<pre lang="sql" cssfile="another_style" >
+MySQL >  select rule_id,match_digest,destination_hostgroup from mysql_query_rules;
++---------+-----------------------+-----------------------+
+| rule_id | match_digest          | destination_hostgroup |
++---------+-----------------------+-----------------------+
+| 1       | ^SELECT .* FOR UPDATE | 10                    |
+| 2       | ^SELECT .*            | 20                    |
++---------+-----------------------+-----------------------+
+2 rows in set (0.00 sec)
+</pre>
+Metrics data has also been collected inside the stats schema. We see that master and replicas have received their share of sysbench queries.
+<pre lang="sql" cssfile="another_style" >
+MySQL > select hostgroup, srv_host,Queries from stats_mysql_connection_pool;
++-----------+--------------------------------------------+---------+
+| hostgroup | srv_host                                   | Queries |
++-----------+--------------------------------------------+---------+
+| 10        | mysqlpaasmaster.mysql.database.azure.com   | 472     |
+| 20        | mysqlpaasreplica1.mysql.database.azure.com | 415     |
+| 20        | mysqlpaasmaster.mysql.database.azure.com   | 402     |
+| 20        | mysqlpaasreplica2.mysql.database.azure.com | 422     |
++-----------+--------------------------------------------+---------+
+4 rows in set (0.00 sec).
+</pre>
+Through the stats we also get the digest of all the queries run and on wich hostgroup they ran. We can see here that all INSERT, UPDATE,DELE were sent to the Write hostgroup and the SELECT to the Read hostgroup.
+<pre lang="sql" cssfile="another_style" >
+select hostgroup, username, digest_text from  stats_mysql_query_digest;
++-----------+----------+-------------------------------------------------------------+
+| hostgroup | username | digest_text                                                 |
++-----------+----------+-------------------------------------------------------------+
+| 10        | sbtest   | INSERT INTO sbtest5 (id, k, c, pad) VALUES (?, ?, ?, ?)     |
+| 10        | sbtest   | DELETE FROM sbtest2 WHERE id=?                              |
+| 10        | sbtest   | UPDATE sbtest2 SET c=? WHERE id=?                           |
+| 20        | sbtest   | SELECT c FROM sbtest5 WHERE id BETWEEN ? AND ? ORDER BY c   |
+| 20        | sbtest   | SELECT SUM(k) FROM sbtest4 WHERE id BETWEEN ? AND ?         |
+...
+</pre>
 
-#### Configuring ProxySQL through the config file
+In the monitor schema we will find data that has been collected by the 'monitoruser' that has been correctly map to the correct Azure username. In the monitor schema we can find log data for connect, ping, read_only ... Here for example the ping data to check the availability of the backends :
+<pre lang="sql" cssfile="another_style" >
+MySQL > select hostname from mysql_server_ping_log;
++--------------------------------------------+------+------------------+------------+
+| hostname                                   | port | time_start_us    | ping_success_time_us |
++--------------------------------------------+------+------------------+------------+
+| mysqlpaasreplica1.mysql.database.azure.com | 3306 | 1591785759257052 | 20088      |
+| mysqlpaasreplica2.mysql.database.azure.com | 3306 | 1591785759269801 | 19948      |
+| mysqlpaasmaster.mysql.database.azure.com   | 3306 | 1591785759282430 | 19831      | 
+</pre>
+To use this Azure specific username rewriting hack I have defined a global variable that activate or not this Azure specific code. By default it is false which means nothing specific happens.
+<pre lang="sql" cssfile="another_style" >
+select variable_value from global_variables where variable_name='mysql-azure_gen1_username';
++----------------+
+| variable_value |
++----------------+
+| false          |
++----------------+
+1 row in set (0.00 sec)
+</pre>
+To activate the Azure specific behavior when using Azure Database for MySQL / MariaDB:
+<pre lang="bash" cssfile="another_style" >
+set mysql-azure_gen1_username='true';
+load mysql variables to runtime; ONLINE
+</pre>
 
-Even though the config file should only be regarded as a secondary way to configure the proxy, we must not discard its value as a valid way to bootstrap a fresh ProxySQL install.
+if you need the code you can get it from my repo <a href="https://github.com/sfrezefo/proxysql/tree/azurehack" rel="noopener" target="_blank">https://github.com/sfrezefo/proxysql/tree/azurehack</a>
+As I am a occasional developper feel free to improve/fix ;-)
+I will submit a pull request to the Rene_Canao/proxySQL repo.  
+I hope this will help the use of proxySQL on Azure with Azure Database for MySQL / MariaDB.
 
-Let's quickly go over the main sections of the configuration file (this overview serves as a very high level overview of ProxySQL configuration).
 
-Top-level sections:
-* `admin_variables`: contains global variables that control the functionality of the admin interface.
-* `mysql_variables`: contains global variables that control the functionality for handling the incoming MySQL traffic.
-* `mysql_servers`: contains rows for the `mysql_servers` table from the admin interface. Basically, these define the backend servers towards which the incoming MySQL traffic is routed. Rows are encoded as per the `.cfg` file format, here is an example:
-	
-	```bash
-	mysql_servers =
-	(
-		{
-			address="127.0.0.1"
-			port=3306
-			hostgroup=0
-			max_connections=200
-		}
-	)
-	```
-* `mysql_users`: contains rows for the `mysql_users` table from the admin interface. Basically, these define the users which can connect to the proxy, and the users with which the proxy can connect to the backend servers. Rows are encoded as per the `.cfg` file format, here is an example:
-	
-	```bash
-	mysql_users:
-	(
-		{
-			username = "root"
-			password = "root"
-			default_hostgroup = 0
-			max_connections=1000
-			default_schema="information_schema"
-			active = 1
-		}
-	)
-	```
-* `mysql_query_rules`: contains rows for the `mysql_query_rules` table from the admin interface. Basically, these define the rules used to classify and route the incoming MySQL traffic, according to various criteria (patterns matched, user used to run the query, etc.). Rows are encoded as per the `.cfg` file format, here is an example (Note: the example is a very generic query routing rule and it is recommended to create specific rules for queries rather than using a generic rule such as this):
-	
-	```bash
-	mysql_query_rules:
-	(
-		{
-			rule_id=1
-			active=1
-			match_pattern="^SELECT .* FOR UPDATE$"
-			destination_hostgroup=0
-			apply=1
-		},
-		{
-			rule_id=2
-			active=1
-			match_pattern="^SELECT"
-			destination_hostgroup=1
-			apply=1
-		}
-	)
-	```
-* top-level configuration item: `datadir`, as a string, to point to the data dir.
+- [Documentation](https://github.com/sysown/proxysql/wiki
+- [ProxySQL Readme](proxysql.md)	
