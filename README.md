@@ -10,15 +10,28 @@ mysql -h mysqlpaasmaster.mysql.database.azure.com \
 </pre>
 
 
-With this ProxySQL modification it will be possible to use the standard username. For example we will  be able to use the <strong>'sbtest'<strong> username to connect. This is very important when we use proxySQL with multiple backends like in a Read/write splitting configuration. In that case proxysql uses a single username to connect to all the backends.
+With this ProxySQL modification it will be possible to use the standard username. For example we will  be able to use the <strong>'sbtest'<strong> username to connect. This is very important when we use proxySQL with multiple backends like in a Read/write splitting configuration. In that case proxysql uses a single username to connect to all the backends. The same principle apply to monitoring where a single username is used to connect to all the backends.
 
 To illustrate this feature we will go through a very typical Read/Write splitting configuration.
 
 ## example
-We connect to the master and create 2 users : 'sbtest' for injecting traffic and 'monitoruser' required by proxysql to monitor the backend servers :
- 
+first we create 3 Azure Database for MySQL servers
+mysqlpaasmaster.mysql.database.azure.com
+mysqlpaasreplica1.mysql.database.azure.com
+mysqlpaasreplica2.mysql.database.azure.com
 
-This means we have a different user for each instances. This  does not fit the ProxySQL connection to backends pattern. We will a common user for all backends. ProxySQL will transparently at connection time inject the database name in the username. 
+We connect to the master and create 2 users : 'sbtest' for injecting traffic and 'monitoruser' required by proxysql to monitor the backend servers :
+<pre lang="sql" cssfile="another_style" >
+CREATE SCHEMA sbtest;
+CREATE USER sbtest@'%' IDENTIFIED BY 'Passw0rd';
+GRANT ALL PRIVILEGES ON sbtest.* to sbtest@'%';
+
+CREATE USER 'monitoruser'@'%' IDENTIFIED BY 'Passw0rd'; 
+GRANT SELECT ON *.* TO 'monitoruser'@'%' WITH GRANT OPTION; 
+FLUSH PRIVILEGES;  
+</pre>
+
+We have different usernames for each instances. This  does not fit the ProxySQL connection to backends pattern. We need a common user for all backends. ProxySQL will transparently at connection time inject the database name in the username. 
 
 For example for a username defined as <strong>'sbtest'</strong> it will generate different usernames to be used to connect to different backends
 <pre lang="bash" cssfile="another_style" >
@@ -34,7 +47,7 @@ monitoruser@mysqlpaasreplica1 if connecting to mysqlpaasreplica1.mysql.database.
 monitoruser@mysqlpaasreplica2 if connecting to mysqlpaasreplica2.mysql.database.azure.com
 </pre>
 
-you can set a global variable that will automatically the 
+you can set a global variable that will automatically activate this feature. 
 
 To activate the Azure specific behavior when using Azure Database for MySQL / MariaDB:
 <pre lang="bash" cssfile="another_style" >
@@ -43,13 +56,6 @@ load mysql variables to runtime; ONLINE
 </pre>
 This is manadatory to use proxySQL with Azure Database for MySQL 
 
-CREATE SCHEMA sbtest;
-CREATE USER sbtest@'%' IDENTIFIED BY 'Passw0rd';
-GRANT ALL PRIVILEGES ON sbtest.* to sbtest@'%';
-
-CREATE USER 'monitoruser'@'%' IDENTIFIED BY 'Passw0rd'; 
-GRANT SELECT ON *.* TO 'monitoruser'@'%' WITH GRANT OPTION; 
-FLUSH PRIVILEGES; 
 </pre>
 Now we configure proxysql through the proxysql admin. At initial startup proxysql reads its configuration from /etc/proxysql.cnf. This is where the admin user credentials are defined :
 <pre lang="bash" cssfile="another_style" >
