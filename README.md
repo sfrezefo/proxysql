@@ -47,15 +47,12 @@ monitoruser@mysqlpaasreplica1 if connecting to mysqlpaasreplica1.mysql.database.
 monitoruser@mysqlpaasreplica2 if connecting to mysqlpaasreplica2.mysql.database.azure.com
 </pre>
 
-you can set a global variable that will automatically activate this feature. 
-
-To activate the Azure specific behavior when using Azure Database for MySQL / MariaDB:
+you can have to set a global variable to activate the Azure specific behavior when using Azure Database for MySQL / MariaDB:
 <pre lang="bash" cssfile="another_style" >
 set mysql-azure_gen1_username='true';
 load mysql variables to runtime; ONLINE
 </pre>
 This is manadatory to use proxySQL with Azure Database for MySQL 
-
 </pre>
 Now we configure proxysql through the proxysql admin. At initial startup proxysql reads its configuration from /etc/proxysql.cnf. This is where the admin user credentials are defined :
 <pre lang="bash" cssfile="another_style" >
@@ -87,7 +84,7 @@ We then define the 'sbtest' proxysql user that  will transparently be transforme
 insert into mysql_users(username,password,default_hostgroup,transaction_persistent) 
   values('sbtest','Passw0rd',10,1);
 </pre>
-No we need to define  the query routing rules that will determine to which host groups and consequently backends the queries will be routed. For Read/Write splitting that is quite simple : SELECT FOR UPDATE to 'Write group, SELECT to 'Read group' and all the rest to the default group of the user. So this means everything to 'Write group' except pure SELECT. 
+Now we need to define  the query routing rules that will determine to which host groups and consequently backends the queries will be routed. For Read/Write splitting that is quite simple : SELECT FOR UPDATE to 'Write group, SELECT to 'Read group' and all the rest to the default group of the user. So this means everything to 'Write group' except pure SELECT. 
 <pre lang="bash" cssfile="another_style" >
 insert into mysql_query_rules(rule_id,active,match_digest,destination_hostgroup,apply) 
   values(1,1,'^SELECT.*FOR UPDATE$',10,1); 
@@ -112,14 +109,7 @@ save admin variables to disk;
 
 
 
-
-
-
-
-
-
-================================
-
+## how to build this modified version of proxysql
 
 
 
@@ -397,11 +387,11 @@ set mysql-azure_gen1_username='true';
 load mysql variables to runtime; ONLINE
 </pre>
 
-if you need the code you can get it from my repo <a href="https://github.com/sfrezefo/proxysql/tree/azurehack" rel="noopener" target="_blank">https://github.com/sfrezefo/proxysql/tree/azurehack</a>
-As I am a occasional developper feel free to improve/fix ;-)
-I will submit a pull request to the Rene_Canao/proxySQL repo.  
+As I am a occasional developper feel free to improve/fix this code;-)
+A pull request has been submited to the original Rene_Canao/proxySQL repo.  
 I hope this will help the use of proxySQL on Azure with Azure Database for MySQL / MariaDB.
 
-
-- [Documentation](https://github.com/sysown/proxysql/wiki
+Associated blog posts :
+[using proxysql with azure database for mysql mariadb](https://serge.frezefond.com/2020/06/using-proxysql-with-azure-database-for-mysql-mariadb/)
+- [ProxySQL Documentation](https://github.com/sysown/proxysql/wiki)
 - [ProxySQL Readme](proxysql.md)	

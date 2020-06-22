@@ -7,39 +7,43 @@
 #include "../deps/json/json.hpp"
 using json = nlohmann::json;
 
-#define STATUS_MYSQL_CONNECTION_TRANSACTION          0x00000001
-#define STATUS_MYSQL_CONNECTION_COMPRESSION          0x00000002
-#define STATUS_MYSQL_CONNECTION_USER_VARIABLE        0x00000004
-#define STATUS_MYSQL_CONNECTION_PREPARED_STATEMENT   0x00000008
-#define STATUS_MYSQL_CONNECTION_LOCK_TABLES          0x00000010
-#define STATUS_MYSQL_CONNECTION_TEMPORARY_TABLE      0x00000020
-#define STATUS_MYSQL_CONNECTION_GET_LOCK             0x00000040
-#define STATUS_MYSQL_CONNECTION_NO_MULTIPLEX         0x00000080
-#define STATUS_MYSQL_CONNECTION_SQL_LOG_BIN0         0x00000100
-#define STATUS_MYSQL_CONNECTION_FOUND_ROWS           0x00000200
+#define STATUS_MYSQL_CONNECTION_TRANSACTION 0x00000001
+#define STATUS_MYSQL_CONNECTION_COMPRESSION 0x00000002
+#define STATUS_MYSQL_CONNECTION_USER_VARIABLE 0x00000004
+#define STATUS_MYSQL_CONNECTION_PREPARED_STATEMENT 0x00000008
+#define STATUS_MYSQL_CONNECTION_LOCK_TABLES 0x00000010
+#define STATUS_MYSQL_CONNECTION_TEMPORARY_TABLE 0x00000020
+#define STATUS_MYSQL_CONNECTION_GET_LOCK 0x00000040
+#define STATUS_MYSQL_CONNECTION_NO_MULTIPLEX 0x00000080
+#define STATUS_MYSQL_CONNECTION_SQL_LOG_BIN0 0x00000100
+#define STATUS_MYSQL_CONNECTION_FOUND_ROWS 0x00000200
 #define STATUS_MYSQL_CONNECTION_NO_BACKSLASH_ESCAPES 0x00000400
-#define STATUS_MYSQL_CONNECTION_HAS_SAVEPOINT        0x00000800
+#define STATUS_MYSQL_CONNECTION_HAS_SAVEPOINT 0x00000800
 
-class Variable {
+class Variable
+{
 public:
-	char *value = (char*)"";
+	char *value = (char *)"";
 	void fill_server_internal_session(json &j, int conn_num, int idx);
 	void fill_client_internal_session(json &j, int idx);
 	static const char set_name[SQL_NAME_LAST][64];
 	static const char proxysql_internal_session_name[SQL_NAME_LAST][64];
 };
 
-enum charset_action {
+enum charset_action
+{
 	UNKNOWN,
 	NAMES,
 	CHARSET,
 	CONNECT_START
 };
 
-class MySQL_Connection_userinfo {
-	private:
+class MySQL_Connection_userinfo
+{
+private:
 	uint64_t compute_hash();
-  public:
+
+public:
 	uint64_t hash;
 	char *username;
 	char *password;
@@ -53,12 +57,15 @@ class MySQL_Connection_userinfo {
 	bool set_schemaname(char *, int);
 };
 
-class MySQL_Connection {
-	private:
+class MySQL_Connection
+{
+private:
 	bool is_expired(unsigned long long timeout);
 	unsigned long long inserted_into_pool;
-	public:
-	struct {
+
+public:
+	struct
+	{
 		char *server_version;
 		uint32_t session_track_gtids_int;
 		uint32_t max_allowed_pkt;
@@ -67,7 +74,7 @@ class MySQL_Connection {
 		unsigned int compression_min_length;
 		char *init_connect;
 		bool init_connect_sent;
-		char * session_track_gtids;
+		char *session_track_gtids;
 		char *ldap_user_variable;
 		char *ldap_user_variable_value;
 		bool session_track_gtids_sent;
@@ -82,7 +89,8 @@ class MySQL_Connection {
 	uint32_t var_hash[SQL_NAME_LAST];
 	bool var_absent[SQL_NAME_LAST] = {false};
 
-	struct {
+	struct
+	{
 		unsigned long length;
 		char *ptr;
 		MYSQL_STMT *stmt;
@@ -95,7 +103,7 @@ class MySQL_Connection {
 	unsigned long long timeout;
 	int auto_increment_delay_token;
 	int fd;
-	MySQL_STMTs_local_v14 *local_stmts;	// local view of prepared statements
+	MySQL_STMTs_local_v14 *local_stmts; // local view of prepared statements
 	MYSQL *mysql;
 	MYSQL *ret_mysql;
 	MYSQL_RES *mysql_result;
@@ -104,11 +112,14 @@ class MySQL_Connection {
 	MySQL_ResultSet *MyRS_reuse;
 	MySrvC *parent;
 	MySQL_Connection_userinfo *userinfo;
+	// sfrezefo as async call requires it to live longer than calling block
+	char newusername[128];
 	MySQL_Data_Stream *myds;
 	enum MySerStatus server_status; // this to solve a side effect of #774
 
 	bytes_stats_t bytes_info; // bytes statistics
-	struct {
+	struct
+	{
 		unsigned long long questions;
 		unsigned long long myconnpoll_get;
 		unsigned long long myconnpoll_put;
@@ -116,9 +127,9 @@ class MySQL_Connection {
 
 	unsigned long largest_query_length;
 	uint32_t status_flags;
-	int async_exit_status; // exit status of MariaDB Client Library Non blocking API
-	int interr;	// integer return
-	MDB_ASYNC_ST async_state_machine;	// Async state machine
+	int async_exit_status;			  // exit status of MariaDB Client Library Non blocking API
+	int interr;						  // integer return
+	MDB_ASYNC_ST async_state_machine; // Async state machine
 	short wait_events;
 	uint8_t compression_pkt_id;
 	my_bool ret_bool;
@@ -191,7 +202,7 @@ class MySQL_Connection {
 	int async_set_autocommit(short event, bool);
 	int async_set_names(short event, unsigned int nr);
 	int async_send_simple_command(short event, char *stmt, unsigned long length); // no result set expected
-	int async_query(short event, char *stmt, unsigned long length, MYSQL_STMT **_stmt=NULL, stmt_execute_metadata_t *_stmt_meta=NULL);
+	int async_query(short event, char *stmt, unsigned long length, MYSQL_STMT **_stmt = NULL, stmt_execute_metadata_t *_stmt_meta = NULL);
 	int async_ping(short event);
 	int async_set_option(short event, bool mask);
 
@@ -201,7 +212,6 @@ class MySQL_Connection {
 	void stmt_execute_cont(short event);
 	void stmt_execute_store_result_start();
 	void stmt_execute_store_result_cont(short event);
-
 
 	void async_free_result();
 	bool IsActiveTransaction(); /* {
@@ -227,7 +237,11 @@ class MySQL_Connection {
 	void reset();
 
 	bool get_gtid(char *buff, uint64_t *trx_id);
-	void reduce_auto_increment_delay_token() { if (auto_increment_delay_token) auto_increment_delay_token--; };
+	void reduce_auto_increment_delay_token()
+	{
+		if (auto_increment_delay_token)
+			auto_increment_delay_token--;
+	};
 
 	bool match_tracked_options(MySQL_Connection *c);
 	unsigned long get_mysql_thread_id() { return mysql ? mysql->thread_id : 0; }
