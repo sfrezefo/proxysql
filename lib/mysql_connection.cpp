@@ -19,27 +19,34 @@ void Variable::fill_server_internal_session(json &j, int conn_num, int idx)
 	if (idx == SQL_CHARACTER_SET_RESULTS || idx == SQL_CHARACTER_SET_CLIENT || idx == SQL_CHARACTER_SET_DATABASE)
 	{
 		const MARIADB_CHARSET_INFO *ci = NULL;
-		if (!value)
+		if (!value) {
 			ci = proxysql_find_charset_name(mysql_tracked_variables[idx].default_value);
-		else
+		} else if (strcasecmp("NULL", value) && strcasecmp("binary", value)) {
 			ci = proxysql_find_charset_nr(atoi(value));
-		if (!ci)
-		{
-			if (idx == SQL_CHARACTER_SET_RESULTS && (!strcasecmp("NULL", value) || !strcasecmp("binary", value)))
-			{
-				j["conn"][mysql_tracked_variables[idx].internal_variable_name] = (ci && ci->csname) ? ci->csname : "";
-			}
-			else
-			{
+		}
+		if (!ci) {
+			if (idx == SQL_CHARACTER_SET_RESULTS && (!strcasecmp("NULL", value) || !strcasecmp("binary", value))) {
+				if (!strcasecmp("NULL", value)) {
+					j["backends"][conn_num]["conn"][mysql_tracked_variables[idx].internal_variable_name] = "";
+				} else {
+					j["backends"][conn_num]["conn"][mysql_tracked_variables[idx].internal_variable_name] = value;
+				}
+			} else {
 				proxy_error("Cannot find charset [%s] for variables %d\n", value, idx);
 				assert(0);
 			}
+		} else {
+			j["backends"][conn_num]["conn"][mysql_tracked_variables[idx].internal_variable_name] = std::string((ci && ci->csname)?ci->csname:"");
 		}
+<<<<<<< HEAD
 
 		j["backends"][conn_num]["conn"][mysql_tracked_variables[idx].internal_variable_name] = std::string((ci && ci->csname) ? ci->csname : "");
 	}
 	else if (idx == SQL_CHARACTER_SET_CONNECTION)
 	{
+=======
+	} else if (idx == SQL_CHARACTER_SET_CONNECTION) {
+>>>>>>> v2.0.13
 		const MARIADB_CHARSET_INFO *ci = NULL;
 		if (!value)
 			ci = proxysql_find_charset_name(mysql_tracked_variables[idx].default_value);
@@ -76,10 +83,11 @@ void Variable::fill_client_internal_session(json &j, int idx)
 	if (idx == SQL_CHARACTER_SET_RESULTS || idx == SQL_CHARACTER_SET_CLIENT || idx == SQL_CHARACTER_SET_DATABASE)
 	{
 		const MARIADB_CHARSET_INFO *ci = NULL;
-		if (!value)
+		if (!value) {
 			ci = proxysql_find_charset_name(mysql_tracked_variables[idx].default_value);
-		else
+		} else if (strcasecmp("NULL", value) && strcasecmp("binary", value)) {
 			ci = proxysql_find_charset_nr(atoi(value));
+<<<<<<< HEAD
 		if (!ci)
 		{
 			if (idx == SQL_CHARACTER_SET_RESULTS && (!strcasecmp("NULL", value) || !strcasecmp("binary", value)))
@@ -88,15 +96,32 @@ void Variable::fill_client_internal_session(json &j, int idx)
 			}
 			else
 			{
+=======
+		}
+		if (!ci) {
+			if (idx == SQL_CHARACTER_SET_RESULTS && (!strcasecmp("NULL", value) || !strcasecmp("binary", value))) {
+				if (!strcasecmp("NULL", value)) {
+					j["conn"][mysql_tracked_variables[idx].internal_variable_name] = "";
+				} else {
+					j["conn"][mysql_tracked_variables[idx].internal_variable_name] = value;
+				}
+			} else {
+>>>>>>> v2.0.13
 				proxy_error("Cannot find charset [%s] for variables %d\n", value, idx);
 				assert(0);
 			}
+		} else {
+			j["conn"][mysql_tracked_variables[idx].internal_variable_name] = (ci && ci->csname)?ci->csname:"";
 		}
+<<<<<<< HEAD
 
 		j["conn"][mysql_tracked_variables[idx].internal_variable_name] = (ci && ci->csname) ? ci->csname : "";
 	}
 	else if (idx == SQL_CHARACTER_SET_CONNECTION)
 	{
+=======
+	} else if (idx == SQL_CHARACTER_SET_CONNECTION) {
+>>>>>>> v2.0.13
 		const MARIADB_CHARSET_INFO *ci = NULL;
 		if (!value)
 			ci = proxysql_find_charset_collate(mysql_tracked_variables[idx].default_value);
