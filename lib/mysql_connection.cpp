@@ -3,6 +3,7 @@
 #include "SpookyV2.h"
 #include <fcntl.h>
 #include <sstream>
+#include <string.h>
 
 #include "MySQL_PreparedStatement.h"
 #include "MySQL_Data_Stream.h"
@@ -13,6 +14,28 @@
 
 extern const MARIADB_CHARSET_INFO * proxysql_find_charset_nr(unsigned int nr);
 MARIADB_CHARSET_INFO * proxysql_find_charset_name(const char *name);
+
+// sfrezefo
+int redirect_index=0;
+char original_host[10][256]={0};
+char redirected_host[10][256]={0};
+char original_username[10][256]={0};
+char redirected_username[10][256]={0};
+char original_port[10][256]={0};
+char redirected_port[10][256]={0};
+
+int  find_redirect_host(char *hostname, char *username) {
+	proxy_error("___ find_redirect_host host %s user %s----------------------\n",hostname, username);
+	for(int i=0; i<redirect_index;i++){
+		if ((strcmp(hostname, original_host[i]) == 0) && (strcmp(username, original_username[i]) == 0)) {
+			proxy_error("___ find_redirect_host at index %d----------------------\n",i);
+			return i;
+		}
+	}
+	proxy_error("___ find_redirect_host not found -1--------------------\n");
+	return -1;
+}
+// sfrezefo/
 
 void Variable::fill_server_internal_session(json &j, int conn_num, int idx) {
 	if (idx == SQL_CHARACTER_SET_RESULTS || idx == SQL_CHARACTER_SET_CLIENT || idx == SQL_CHARACTER_SET_DATABASE) {
@@ -701,7 +724,57 @@ void MySQL_Connection::connect_start() {
 		}
 	}
 	if (parent->port) {
-		async_exit_status=mysql_real_connect_start(&ret_mysql, mysql, parent->address, userinfo->username, auth_password, userinfo->schemaname, parent->port, NULL, client_flags);
+		// sfrezefo
+		int iredirect = find_redirect_host(parent->address,userinfo->username);
+		if ( iredirect >= 0) {
+			proxy_error("start - use redirected !!!! host %s port %s user %s----------------------\n",redirected_host[iredirect], redirected_port[iredirect],redirected_username[iredirect]);
+			async_exit_status=mysql_real_connect_start(&ret_mysql, mysql, redirected_host[iredirect], redirected_username[iredirect], auth_password, userinfo->schemaname, stoi(redirected_port[iredirect]), NULL, client_flags);
+		} else {
+			proxy_error("start - no use ofredirect __________________\n");
+			async_exit_status=mysql_real_connect_start(&ret_mysql, mysql, parent->address, userinfo->username, auth_password, userinfo->schemaname, parent->port, NULL, client_flags);
+		}
+		// sfrezefo async_exit_status=mysql_real_connect_start(&ret_mysql, mysql, parent->address, userinfo->username, auth_password, userinfo->schemaname, parent->port, NULL, client_flags);
+		/* sfrezefo 
+		\000
+		\000
+		\000
+		\002@
+		\000\000
+ 		oLocation: mysql://bd8e224aba70.tr1097.northeurope1-a.worker.database.windows.net:16036/user=sbtest@bd8e224aba70\025\001\0
+		*/
+		if(strstr(parent->address, "database.windows.net") != NULL) 
+			iredirect=0;
+		if ((async_exit_status == 0) && (iredirect == -1)) {
+			proxy_error("start - gettin info from OK packet start ----------------------\n");
+			int leninfo, lenhost, lenport,lenuser;
+			char *debcon, *host, *port, *user;
+			char hostname[256]={0};
+			char portvalue[256]={0};
+			char username[256]={0};
+
+			leninfo = (int)(ret_mysql->net.read_pos[7]) ;
+			debcon = (char *)(ret_mysql->net.read_pos+8) ;
+			host= strstr(debcon, "//") + 2;
+			port= strstr(debcon, ".net:") + 5;
+			lenhost= port - host - 1 ;
+			user = strstr(debcon, "/user=") + 6;
+			lenport= user - port - 6;
+			strncpy(hostname, host, lenhost);
+			strncpy(portvalue, port, lenport);
+			lenuser = (debcon + leninfo) - user;
+			strncpy(username, user,lenuser);
+
+			strcpy(redirected_host[redirect_index], hostname);
+			strcpy(redirected_username[redirect_index], username);
+			strcpy(redirected_port[redirect_index], portvalue);
+			strcpy(original_host[redirect_index], mysql->host);
+			strcpy(original_username[redirect_index], mysql->user);
+			redirect_index++;
+
+			proxy_error("start - redirect host %s port %s user %s----------------------\n",redirected_host[redirect_index - 1], redirected_port[redirect_index - 1],redirected_username[redirect_index - 1]);
+			proxy_error("start - host %s port %s user %s----------------------\n",hostname, portvalue, username);
+		}
+	// sfrezefo/
 	} else {
 		async_exit_status=mysql_real_connect_start(&ret_mysql, mysql, "localhost", userinfo->username, auth_password, userinfo->schemaname, parent->port, parent->address, client_flags);
 	}
@@ -711,6 +784,46 @@ void MySQL_Connection::connect_start() {
 void MySQL_Connection::connect_cont(short event) {
 	proxy_debug(PROXY_DEBUG_MYSQL_PROTOCOL, 6,"event=%d\n", event);
 	async_exit_status = mysql_real_connect_cont(&ret_mysql, mysql, mysql_status(event, true));
+	// sfrezefo
+	if (async_exit_status == 0) {
+		int iredirect;
+		if(strstr(mysql->host, "database.windows.net") != NULL) {
+			iredirect=0;
+		} else {
+			iredirect = find_redirect_host(mysql->host, mysql->user);
+		}
+		if (iredirect == -1) {
+			proxy_error("cont - gettin info from OK packet cont ----------------------\n");
+			int leninfo, lenhost, lenport,lenuser;
+			char *debcon, *host, *port, *user;
+			char hostname[256]= {0};
+			char portvalue[256]= {0};
+			char username[256]= {0};
+
+			leninfo = (int)(ret_mysql->net.read_pos[7]) ;
+			debcon = (char *)(ret_mysql->net.read_pos+8) ;
+			host= strstr(debcon, "//") + 2;
+			port= strstr(debcon, ".net:") + 5;
+			lenhost= port - host - 1 ;
+			user = strstr(debcon, "/user=") + 6;
+			lenport= user - port - 6;
+			strncpy(hostname, host, lenhost);
+			strncpy(portvalue, port, lenport);
+			lenuser = (debcon + leninfo) - user;
+			strncpy(username, user,lenuser);
+
+	 		strcpy(redirected_host[redirect_index], hostname);
+	 		strcpy(redirected_username[redirect_index], username);
+	 		strcpy(redirected_port[redirect_index], portvalue);
+	 		strcpy(original_host[redirect_index], mysql->host);
+	 		strcpy(original_username[redirect_index], mysql->user);
+	 		redirect_index++;
+
+			proxy_error("cont - redirect host %s port %s user %s----------------------\n",redirected_host[redirect_index - 1], redirected_port[redirect_index - 1],redirected_username[redirect_index - 1]);
+			proxy_error("cont - host %s port %s user %s----------------------\n",hostname, portvalue, username);
+		}
+	}
+	// sfrezefo/
 }
 
 void MySQL_Connection::change_user_start() {
