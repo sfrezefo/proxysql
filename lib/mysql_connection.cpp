@@ -35,6 +35,36 @@ int  find_redirect_host(char *hostname, char *username) {
 	proxy_error("___ find_redirect_host not found -1--------------------\n");
 	return -1;
 }
+int set_redirect(MYSQL *ret_mysql,MYSQL *mysql) {
+	proxy_error("start - gettin info from OK packet start ----------------------\n");
+	int leninfo, lenhost, lenport,lenuser;
+	char *debcon, *host, *port, *user;
+	char hostname[256]={0};
+	char portvalue[256]={0};
+	char username[256]={0};
+
+	leninfo = (int)(ret_mysql->net.read_pos[7]) ;
+	debcon = (char *)(ret_mysql->net.read_pos+8) ;
+	host= strstr(debcon, "//") + 2;
+	port= strstr(debcon, ".net:") + 5;
+	lenhost= port - host - 1 ;
+	user = strstr(debcon, "/user=") + 6;
+	lenport= user - port - 6;
+	strncpy(hostname, host, lenhost);
+	strncpy(portvalue, port, lenport);
+	lenuser = (debcon + leninfo) - user;
+	strncpy(username, user,lenuser);
+
+	strcpy(redirected_host[redirect_index], hostname);
+	strcpy(redirected_username[redirect_index], username);
+	strcpy(redirected_port[redirect_index], portvalue);
+	strcpy(original_host[redirect_index], mysql->host);
+	strcpy(original_username[redirect_index], mysql->user);
+	redirect_index++;
+
+	proxy_error("start - redirect host %s port %s user %s----------------------\n",redirected_host[redirect_index - 1], redirected_port[redirect_index - 1],redirected_username[redirect_index - 1]);
+	proxy_error("start - host %s port %s user %s----------------------\n",hostname, portvalue, username);
+}
 // sfrezefo/
 
 void Variable::fill_server_internal_session(json &j, int conn_num, int idx) {
@@ -745,7 +775,10 @@ void MySQL_Connection::connect_start() {
 		if(strstr(parent->address, "database.windows.net") != NULL) 
 			iredirect=0;
 		if ((async_exit_status == 0) && (iredirect == -1)) {
+
 			proxy_error("start - gettin info from OK packet start ----------------------\n");
+			set_redirect(ret_mysql,mysql);
+/*
 			int leninfo, lenhost, lenport,lenuser;
 			char *debcon, *host, *port, *user;
 			char hostname[256]={0};
@@ -773,6 +806,7 @@ void MySQL_Connection::connect_start() {
 
 			proxy_error("start - redirect host %s port %s user %s----------------------\n",redirected_host[redirect_index - 1], redirected_port[redirect_index - 1],redirected_username[redirect_index - 1]);
 			proxy_error("start - host %s port %s user %s----------------------\n",hostname, portvalue, username);
+			*/
 		}
 	// sfrezefo/
 	} else {
@@ -794,6 +828,8 @@ void MySQL_Connection::connect_cont(short event) {
 		}
 		if (iredirect == -1) {
 			proxy_error("cont - gettin info from OK packet cont ----------------------\n");
+			set_redirect(ret_mysql,mysql);
+/*
 			int leninfo, lenhost, lenport,lenuser;
 			char *debcon, *host, *port, *user;
 			char hostname[256]= {0};
@@ -821,6 +857,7 @@ void MySQL_Connection::connect_cont(short event) {
 
 			proxy_error("cont - redirect host %s port %s user %s----------------------\n",redirected_host[redirect_index - 1], redirected_port[redirect_index - 1],redirected_username[redirect_index - 1]);
 			proxy_error("cont - host %s port %s user %s----------------------\n",hostname, portvalue, username);
+*/
 		}
 	}
 	// sfrezefo/
